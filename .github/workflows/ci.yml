@@ -41,7 +41,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -67,6 +67,7 @@ jobs:
           VERSION=${TAG_NAME#v}
           # Output the version for use in subsequent steps
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Build and push with version tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -81,6 +82,51 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Generate release notes (changelog) and body
+        if: startsWith(github.ref, 'refs/tags/')
+        id: rel
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune
+          CURRENT_TAG="${{ steps.tag.outputs.tag_name }}"
+          # Find previous tag (if any); otherwise use root
+          if PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null); then
+            RANGE="$PREV_TAG..$CURRENT_TAG"
+          else
+            RANGE="$CURRENT_TAG"
+          fi
+          echo "previous_tag=${PREV_TAG:-}" >> $GITHUB_OUTPUT
+          echo "range=$RANGE" >> $GITHUB_OUTPUT
+
+          echo "# Release $CURRENT_TAG" > RELEASE_BODY.md
+          echo >> RELEASE_BODY.md
+          echo "## Docker Image" >> RELEASE_BODY.md
+          echo "- \\`docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.version }}\\`" >> RELEASE_BODY.md
+          echo >> RELEASE_BODY.md
+          echo "## Kubernetes Manifests" >> RELEASE_BODY.md
+          echo "- Directory: https://github.com/Nitecon/agones-pubsub-allocator/tree/${CURRENT_TAG}/deployments/examples" >> RELEASE_BODY.md
+          echo "- Files and purpose:" >> RELEASE_BODY.md
+          echo "  - [configmap.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/configmap.yaml): Runtime configuration (env vars)." >> RELEASE_BODY.md
+          echo "  - [deployment.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/deployment.yaml): Kubernetes Deployment for the allocator." >> RELEASE_BODY.md
+          echo "  - [service.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/service.yaml): ClusterIP Service exposing metrics/health." >> RELEASE_BODY.md
+          echo "  - [networkpolicy.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/networkpolicy.yaml): Optional NetworkPolicy restricting traffic." >> RELEASE_BODY.md
+          echo "  - [serviceaccount.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/serviceaccount.yaml): ServiceAccount for the allocator Pod." >> RELEASE_BODY.md
+          echo "  - [role.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/role.yaml): Minimal RBAC Role permissions." >> RELEASE_BODY.md
+          echo "  - [rolebinding.yaml](https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/${CURRENT_TAG}/deployments/examples/rolebinding.yaml): Binds Role to the ServiceAccount." >> RELEASE_BODY.md
+          echo >> RELEASE_BODY.md
+          echo "## Changes since ${PREV_TAG:-initial commit}" >> RELEASE_BODY.md
+          git log --no-merges --pretty=format:'- %s (%h) by %an' $RANGE >> RELEASE_BODY.md || true
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: Release ${{ steps.tag.outputs.tag_name }}
+          body_path: RELEASE_BODY.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push latest
         if: github.ref_type != 'tag'
