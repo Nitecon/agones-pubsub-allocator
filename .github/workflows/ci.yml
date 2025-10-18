@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: CI
 
 on:
   push:
@@ -15,7 +15,30 @@ env:
   IMAGE_NAME: nitecon/agones-pubsub-allocator
 
 jobs:
+  test:
+    name: Run Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify build
+        run: go build ./...
+
+      - name: Run unit tests
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Show coverage summary
+        run: go tool cover -func=coverage.txt
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
