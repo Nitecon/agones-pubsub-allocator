@@ -3,7 +3,8 @@
 [![Latest Release](https://img.shields.io/github/release/Nitecon/agones-pubsub-allocator.svg)](https://agones-pubsub-allocator/releases/latest)
 [![License](https://img.shields.io/github/license/Nitecon/agones-pubsub-allocator.svg)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/agones-pubsub-allocator)](https://goreportcard.com/report/agones-pubsub-allocator)
-[![Tests](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/test.yml/badge.svg)](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/test.yml)
+[![Tests](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/ci.yml/badge.svg)](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/nitecon/agones-pubsub-allocator)](https://hub.docker.com/r/nitecon/agones-pubsub-allocator)
 
 A small service that listens to Google Cloud Pub/Sub for allocation requests, allocates Agones GameServers on Kubernetes, and publishes allocation results back to Pub/Sub.
 
