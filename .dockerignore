@@ -1,14 +1,9 @@
 # Binaries
 /bin/
-/out/
-/allocator
 *.exe
-
+.build/
 # Modules cache
 /go/pkg/
-
-# Git
-.git
 
 # IDE
 .vscode/
