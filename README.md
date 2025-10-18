@@ -1,8 +1,8 @@
 # <img src="https://raw.githubusercontent.com/github/explore/main/topics/agones/agones.png" alt="agones logo" width="32"/> Agones Pub/Sub Allocator
 
-[![Latest Release](https://img.shields.io/github/release/Nitecon/agones-pubsub-allocator.svg)](https://agones-pubsub-allocator/releases/latest)
+[![Latest Release](https://img.shields.io/github/release/Nitecon/agones-pubsub-allocator.svg)](https://github.com/Nitecon/agones-pubsub-allocator/releases/latest)
 [![License](https://img.shields.io/github/license/Nitecon/agones-pubsub-allocator.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/agones-pubsub-allocator)](https://goreportcard.com/report/agones-pubsub-allocator)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Nitecon/agones-pubsub-allocator)](https://goreportcard.com/report/github.com/Nitecon/agones-pubsub-allocator)
 [![Tests](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/ci.yml/badge.svg)](https://github.com/Nitecon/agones-pubsub-allocator/actions/workflows/ci.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nitecon/agones-pubsub-allocator)](https://hub.docker.com/r/nitecon/agones-pubsub-allocator)
 
