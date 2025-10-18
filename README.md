@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/github/explore/main/topics/agones/agones.png" alt="agones logo" width="32"/> Agones Pub/Sub Allocator
+# <img src="https://agones.dev/site/images/logo.svg" alt="agones logo" width="32"/> Agones Pub/Sub Allocator
 
 [![Latest Release](https://img.shields.io/github/release/Nitecon/agones-pubsub-allocator.svg)](https://github.com/Nitecon/agones-pubsub-allocator/releases/latest)
 [![License](https://img.shields.io/github/license/Nitecon/agones-pubsub-allocator.svg)](LICENSE)
