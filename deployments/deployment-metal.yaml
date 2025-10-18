@@ -28,18 +28,13 @@ spec:
                 path: service-account.json
       containers:
         - name: allocator
-          image: ghcr.io/your-org/agones-pubsub-allocator:latest
-          imagePullPolicy: IfNotPresent
+          image: nitecon/agones-pubsub-allocator:latest
+          imagePullPolicy: Always
           args: []
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: ALLOCATOR_PUBSUB_PROJECT_ID
-              valueFrom:
-                configMapKeyRef:
-                  name: agones-allocator-config
-                  key: projectId
             - name: ALLOCATION_REQUEST_SUBSCRIPTION
               valueFrom:
                 configMapKeyRef:

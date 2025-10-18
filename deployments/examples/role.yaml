@@ -1,9 +1,0 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: allocator-role
-  namespace: starx
-rules:
-  - apiGroups: ["allocation.agones.dev"]
-    resources: ["gameserverallocations"]
-    verbs: ["create"]

@@ -82,14 +82,16 @@ On completion, an `allocation-result` is published to the result topic:
 }
 ```
 
-## Kubernetes (external cluster)
+## Kubernetes (metal [non cloud] cluster)
 1) Create a secret with your credentials JSON in your namespace (e.g., `starx`):
 ```bash
-kubectl -n starx create secret generic gcp-sa \
-  --from-file=service-account.json=/path/to/service-account.json
+kubectl -n starx create secret generic gcp-sa --from-file=service-account.json=/path/to/service-account.json
 ```
-2) Update `deployments/examples/configmap.yaml` with your Topic ID and Subscription ID.
-3) Apply manifests in `deployments/examples/`.
+2) Update `deployments/configmap.yaml` with your Topic ID and Subscription ID etc
+3) Apply the deployment manifest to run the allocator:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/refs/heads/main/deployments/deployment-metal.yaml
+```
 
 The example `Deployment` mounts the secret at `/var/secrets/google/service-account.json` and sets `GOOGLE_APPLICATION_CREDENTIALS` to that path.
 
