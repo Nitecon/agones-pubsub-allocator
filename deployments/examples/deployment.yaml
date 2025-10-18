@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agones-allocator
+  namespace: starx
+  labels:
+    app: agones-allocator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agones-allocator
+  template:
+    metadata:
+      labels:
+        app: agones-allocator
+    spec:
+      serviceAccountName: allocator-sa
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 65532
+      volumes:
+        - name: gcp-sa
+          secret:
+            secretName: gcp-sa
+            items:
+              - key: service-account.json
+                path: service-account.json
+      containers:
+        - name: allocator
+          image: ghcr.io/your-org/agones-pubsub-allocator:latest
+          imagePullPolicy: IfNotPresent
+          args: []
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ALLOCATOR_PUBSUB_PROJECT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: agones-allocator-config
+                  key: projectId
+            - name: ALLOCATION_REQUEST_SUBSCRIPTION
+              valueFrom:
+                configMapKeyRef:
+                  name: agones-allocator-config
+                  key: requestSubscription
+            - name: ALLOCATION_RESULT_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: agones-allocator-config
+                  key: resultTopic
+            - name: TARGET_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: agones-allocator-config
+                  key: targetNamespace
+            - name: ALLOCATOR_METRICS_PORT
+              value: "8080"
+            - name: ALLOCATOR_LOG_LEVEL
+              value: "info"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/secrets/google/service-account.json
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: gcp-sa
+              mountPath: /var/secrets/google
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

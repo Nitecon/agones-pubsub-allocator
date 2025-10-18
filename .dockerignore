@@ -1,0 +1,25 @@
+# Binaries
+/bin/
+/out/
+/allocator
+*.exe
+
+# Modules cache
+/go/pkg/
+
+# Git
+.git
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Local env
+.env

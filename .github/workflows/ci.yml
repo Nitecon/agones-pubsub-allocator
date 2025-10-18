@@ -1,0 +1,68 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*.*.*'  # Matches tags like v1.0.0, v2.1.3, etc.
+    paths:
+      - '**'
+      - '!.github/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: nitecon/agones-pubsub-allocator
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine Docker tag
+        id: tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Extract tag name without refs/tags/ prefix
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # Remove 'v' prefix if present (e.g., v1.0.0 -> 1.0.0)
+          VERSION=${TAG_NAME#v}
+          # Output the version for use in subsequent steps
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push with version tag
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push latest
+        if: github.ref_type != 'tag'
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
