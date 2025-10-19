@@ -34,11 +34,12 @@ export ALLOCATION_REQUEST_SUBSCRIPTION="<subscription-id>" \
 Optional overrides:
 - `ALLOCATOR_PUBSUB_PROJECT_ID` or `GOOGLE_PROJECT_ID` to explicitly set your Google project ID.
 - `ALLOCATOR_GSA_CREDENTIALS` as an alternate env var for the credentials file path.
+- `ALLOCATOR_PUBSUB_SUBSCRIPTION` and `ALLOCATOR_PUBSUB_TOPIC` as alternative names for request/result.
 - `TARGET_NAMESPACE` for Agones (default: `default`).
 - `ALLOCATOR_METRICS_PORT` (default: `8080`).
 - `ALLOCATOR_LOG_LEVEL` (default: `info`). Also set `DEBUG=1` to enable debug logs.
 
-Project ID resolution order used by the service:
+Project ID resolution order used by the service (see `config/getGoogleProjectID()`):
 1) `GOOGLE_APPLICATION_CREDENTIALS` → read `project_id` from the JSON file
 2) `ALLOCATOR_PUBSUB_PROJECT_ID`
 3) `GOOGLE_PROJECT_ID`
@@ -49,7 +50,7 @@ Project ID resolution order used by the service:
 ```bash
 go run ./cmd
 ```
-The service will expose:
+The service exposes on `0.0.0.0:$ALLOCATOR_METRICS_PORT` (default 8080):
 - `/metrics` for Prometheus
 - `/healthz` and `/readyz` for liveness/readiness
 
@@ -68,6 +69,7 @@ Publish an allocation request to your request subscription's topic with the foll
 ```
 
 The allocator targets GameServers labeled with `agones.dev/fleet: <fleet-name>`.
+Subscriber behavior: invalid payloads are acked; handler errors result in `Nack` for retry.
 
 On completion, an `allocation-result` is published to the result topic:
 

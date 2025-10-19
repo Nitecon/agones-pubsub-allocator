@@ -1,6 +1,44 @@
 # Agones Pub/Sub Allocator - Coding Guidelines
 
-This document outlines the coding standards, architectural patterns, and best practices for the Agones Pub/Sub Allocator service.
+> Note: Some sections further below reference unrelated web routing, datastore, and websocket patterns from a different project. Those are kept temporarily as legacy appendix material and do not apply to this repository.
+
+## Project-specific quick guidelines
+
+- **Project structure**
+  - `cmd/main.go`: entrypoint; wires `config`, `metrics`, `health`, `queues/pubsub`, and `allocator`.
+  - `allocator/`: allocation controller and Agones client integration (`allocator/controller.go`).
+  - `queues/`: message types (`queues/types.go`), Pub/Sub subscriber/publisher (`queues/pubsub`).
+  - `config/`: env parsing and Google project ID resolution (`config/config.go`).
+  - `metrics/`: Prometheus counters/histograms and HTTP handler.
+  - `health/`: `/healthz` and `/readyz` handlers.
+  - `deployments/`: example manifests.
+
+- **Configuration**
+  - Always use `config.Load()` and pass values through, don't read envs in feature code.
+  - Important envs: `ALLOCATION_REQUEST_SUBSCRIPTION`, `ALLOCATION_RESULT_TOPIC`, `ALLOCATOR_PUBSUB_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` or `ALLOCATOR_GSA_CREDENTIALS`, `TARGET_NAMESPACE`, `ALLOCATOR_METRICS_PORT`, `ALLOCATOR_LOG_LEVEL`, optional `DEBUG=1`.
+  - Project ID resolution order is implemented in `config.getGoogleProjectID()`.
+- **Logging**
+  - Use `zerolog` via `github.com/rs/zerolog/log`.
+  - `DEBUG=1` sets global level to debug; otherwise info.
+  - Include identifiers like `ticketId`, `fleet`, `subscription`, durations, etc.
+
+ - **Queues & payloads**
+  - Request: `{ ticketId, fleet, playerId? }`.
+  - Result: `{ envelopeVersion, type: "allocation-result", ticketId, status: Success|Failure, token?, errorMessage? }`.
+  - Subscriber acks invalid payloads; `handler` errors cause `Nack` for retry.
+
+- **Allocator behavior**
+  - Selects by `agones.dev/fleet: <fleet>` in `targetNamespace`.
+  - Success token is base64 of `IP:Port` from allocation result.
+  - Publishes result through `queues.Publisher`.
+
+- **Testing**
+  - Table-driven tests; use `testing` and `testify` where appropriate.
+  - Mock publisher/subscriber interfaces (`queues.Publisher`) in unit tests.
+
+- **CI/CD**
+  - See `.github/workflows/ci.yml` for build/test.
+  - Multi-stage `Dockerfile` builds the final image.
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
