@@ -46,8 +46,34 @@ kubectl -n starx apply -f configmap.yaml
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/refs/heads/main/deployments/deployment-metal.yaml
 ```
-
 The example `Deployment` mounts the secret at `/var/secrets/google/service-account.json` and sets `GOOGLE_APPLICATION_CREDENTIALS` to that path.
+
+Note that once you have run the commands above you should see the pod spin up and you should see logs like so:
+```
+$ kubectl get po -n starx
+NAME                                     READY   STATUS        RESTARTS       AGE
+agones-allocator-55d6484fcb-rkjgl        1/1     Running       0              53s
+quilkin-manage-agones-5d5b4595cd-99bt6   0/1     Running       42 (38m ago)   2d7h
+quilkin-proxies-847f5545cc-bp4wj         0/1     Running       0              2d7h
+quilkin-proxies-847f5545cc-bzjdk         0/1     Running       0              2d7h
+quilkin-proxies-847f5545cc-h6t6q         0/1     Running       0              2d7h
+```
+Then you can query the agones-allocator logs:
+```
+$ kubectl logs -n starx agones-allocator-55d6484fcb-rkjgl
+```
+Which should respond with output similar to following which should match your configmap:
+```
+{"level":"info","time":"2025-10-19T00:51:42.951186146Z","message":"Starting agones-pubsub-allocator version: main"}
+{"level":"info","credsFile":"/var/secrets/google/service-account.json","time":"2025-10-19T00:51:42.951310936Z","message":"GOOGLE_APPLICATION_CREDENTIALS is set; extracting project_id from credentials file"}
+{"level":"info","config":{"credentialsProvided":true,"logLevel":"info","metricsPort":8080,"projectID":"starx-123123","requestSubscription":"dev-sub","resultTopic":"dev","targetNamespace":"starx"},"time":"2025-10-19T00:51:42.951441878Z","message":"config loaded"}
+{"level":"info","credsFile":"/var/secrets/google/service-account.json","time":"2025-10-19T00:51:42.952468016Z","message":"using explicit Google credentials file"}
+{"level":"info","subscription":"dev-sub","time":"2025-10-19T00:51:42.952502712Z","message":"starting subscriber loop"}
+{"level":"info","addr":"0.0.0.0:8080","time":"2025-10-19T00:51:43.043740047Z","message":"starting metrics/health server"}
+{"level":"info","subscription":"dev-sub","time":"2025-10-19T00:51:43.152131405Z","message":"pubsub subscriber initialized"}
+```
+
+## Develop locally:
 
 Windows PowerShell:
 ```powershell
