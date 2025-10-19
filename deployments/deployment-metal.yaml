@@ -1,8 +1,39 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: allocator-sa
+  namespace: starx
+---
+# allocator-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agones-allocator
+  namespace: starx
+rules:
+  - apiGroups: ["allocation.agones.dev"]
+    resources: ["gameserverallocations"]
+    verbs: ["create"]
+---
+# allocator-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agones-allocator
+  namespace: starx
+subjects:
+  - kind: ServiceAccount
+    name: allocator-sa
+    namespace: starx
+roleRef:
+  kind: Role
+  name: agones-allocator
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: agones-allocator
-  namespace: starx
   labels:
     app: agones-allocator
 spec:
@@ -18,7 +49,10 @@ spec:
       serviceAccountName: allocator-sa
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1001
         fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: gcp-sa
           secret:
@@ -59,6 +93,9 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - "ALL"
           volumeMounts:
             - name: gcp-sa
               mountPath: /var/secrets/google

@@ -87,7 +87,21 @@ On completion, an `allocation-result` is published to the result topic:
 ```bash
 kubectl -n starx create secret generic gcp-sa --from-file=service-account.json=/path/to/service-account.json
 ```
-2) Update `deployments/configmap.yaml` with your Topic ID and Subscription ID etc
+2) Now you need to create a configmap with your pubsub details etc
+```bash
+echo 'apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agones-allocator-config
+  labels:
+    app: agones-allocator
+data:
+  projectId: your-gcp-project
+  requestSubscription: allocator-requests-sub
+  resultTopic: allocator-results
+  targetNamespace: starx' > configmap.yaml
+kubectl -n starx apply -f configmap.yaml
+```
 3) Apply the deployment manifest to run the allocator:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/refs/heads/main/deployments/deployment-metal.yaml

@@ -22,6 +22,33 @@ A small service that listens to Google Cloud Pub/Sub for allocation requests, al
 See `Docs/DevSetup.md` for the exact environment variables. Important:
 - Pub/Sub uses Topic ID and Subscription ID (not full resource names).
 
+## Install on bare metal k8s
+1) Create a secret with your credentials JSON in your namespace (e.g., `starx`) (you must have a service account with Pub/Sub permissions):
+```bash
+kubectl -n starx create secret generic gcp-sa --from-file=service-account.json=/path/to/service-account.json
+```
+2) Now you need to create a configmap with your pubsub details etc
+```bash
+echo 'apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agones-allocator-config
+  labels:
+    app: agones-allocator
+data:
+  projectId: your-gcp-project
+  requestSubscription: allocator-requests-sub
+  resultTopic: allocator-results
+  targetNamespace: starx' > configmap.yaml
+kubectl -n starx apply -f configmap.yaml
+```
+3) Apply the deployment manifest to run the allocator:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/Nitecon/agones-pubsub-allocator/refs/heads/main/deployments/deployment-metal.yaml
+```
+
+The example `Deployment` mounts the secret at `/var/secrets/google/service-account.json` and sets `GOOGLE_APPLICATION_CREDENTIALS` to that path.
+
 Windows PowerShell:
 ```powershell
 $env:ALLOCATION_REQUEST_SUBSCRIPTION="<subscription-id>"; \

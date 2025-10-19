@@ -25,7 +25,7 @@ WORKDIR /
 # Copy in your certificates and passwd file first
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-RUN addgroup -S appusr && adduser -S appusr -G appusr
+RUN addgroup -g 1001 appusr && adduser -u 1001 -G appusr -s /bin/sh -D appusr
 COPY --from=builder /app .
 USER appusr
 
