@@ -35,7 +35,6 @@ func (s *Subscriber) Start(ctx context.Context, handler func(context.Context, *q
 			client, err = gpubsub.NewClient(ctx, s.projectID, option.WithCredentialsFile(s.credsFile))
 		} else {
 			log.Debug().Str("projectID", s.projectID).Str("subscription", s.subscriptionName).Msg("initializing pubsub subscriber with default credentials")
-			client, err = gpubsub.NewClient(ctx, s.projectID)
 		}
 		if err != nil {
 			log.Error().Err(err).Str("projectID", s.projectID).Str("subscription", s.subscriptionName).Msg("failed to create pubsub client for subscriber")
@@ -49,32 +48,46 @@ func (s *Subscriber) Start(ctx context.Context, handler func(context.Context, *q
 
 	// Receive blocks; it will create goroutines internally; respect ctx cancellation
 	return s.sub.Receive(ctx, func(ctx context.Context, m *gpubsub.Message) {
-
-		log.Debug().Str("messageID", m.ID).Int("size", len(m.Data)).Msg("received pubsub message")
+		log.Debug().Str("subscription", s.subscriptionName).Str("messageID", m.ID).Int("size", len(m.Data)).Msg("received pubsub message")
 		recvAt := time.Now()
+		// First, detect envelope type to ignore non-request messages published to the same topic
+		var env struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(m.Data, &env); err != nil {
+			log.Error().Err(err).Str("subscription", s.subscriptionName).Msg("failed to unmarshal message envelope")
+			m.Nack()
+			return
+		}
+		if env.Type != "allocated-request" {
+			log.Debug().Str("subscription", s.subscriptionName).Str("type", env.Type).Msg("ignoring non-request message")
+			m.Ack()
+			return
+		}
+
 		var req queues.AllocationRequest
 		if err := json.Unmarshal(m.Data, &req); err != nil {
-			log.Error().Err(err).Msg("failed to unmarshal allocation request")
+			log.Error().Err(err).Str("subscription", s.subscriptionName).Msg("failed to unmarshal allocation request")
 			// Nack to allow retry
 			m.Nack()
 			return
 		}
 		// Basic validation
 		if req.TicketID == "" || req.Fleet == "" {
-			log.Error().Str("ticketId", req.TicketID).Str("fleet", req.Fleet).Msg("invalid request payload")
+			log.Error().Str("subscription", s.subscriptionName).Str("ticketId", req.TicketID).Str("fleet", req.Fleet).Msg("invalid request payload")
 			// Ack to drop bad message (poison)
 			m.Ack()
 			return
 		}
 
-		log.Info().Str("ticketId", req.TicketID).Str("fleet", req.Fleet).Str("playerId", req.PlayerID).Msg("handling allocation request")
+		log.Info().Str("subscription", s.subscriptionName).Str("ticketId", req.TicketID).Str("fleet", req.Fleet).Str("playerId", req.PlayerID).Msg("handling allocation request")
 		if err := handler(ctx, &req); err != nil {
-			log.Error().Err(err).Str("ticketId", req.TicketID).Msg("handler failed; will retry")
+			log.Error().Err(err).Str("subscription", s.subscriptionName).Str("ticketId", req.TicketID).Msg("handler failed; will retry")
 			m.Nack()
 			return
 		}
 		// Success -> ack
-		log.Debug().Str("ticketId", req.TicketID).Dur("latency", time.Since(recvAt)).Msg("handler succeeded; acking message")
+		log.Debug().Str("subscription", s.subscriptionName).Str("ticketId", req.TicketID).Dur("latency", time.Since(recvAt)).Msg("handler succeeded; acking message")
 		m.Ack()
 	})
 }

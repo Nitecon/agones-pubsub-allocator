@@ -101,9 +101,9 @@ go run ./cmd
 {
   "envelopeVersion": "1.0",
   "type": "allocation-request",
-  "ticketId": "<ticket-id>",
-  "fleet": "<fleet-name>",
-  "playerId": "<optional-player-id>"
+  "ticketId": "abcdef",
+  "fleet": "starx",
+  "playerId": "123asdf"
 }
 ```
 
