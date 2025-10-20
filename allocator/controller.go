@@ -113,6 +113,36 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 	raw := fmt.Sprintf("%s:%d", addr, port)
 	tok := base64.StdEncoding.EncodeToString([]byte(raw))
 
+	// START: Add token to GameServer annotations for quilkin
+	gameServerName := created.Status.GameServerName
+	if gameServerName == "" {
+		msg := "allocated GameServer name is empty in allocation response"
+		log.Error().Str("namespace", ns).Msg("controller: " + msg)
+		return c.publishFailure(ctx, req, start, msg)
+	}
+
+	// Get the allocated GameServer object
+	gs, err := c.agones.AgonesV1().GameServers(ns).Get(ctx, gameServerName, metav1.GetOptions{})
+	if err != nil {
+		log.Error().Err(err).Str("namespace", ns).Str("gameServerName", gameServerName).Msg("controller: failed to get allocated GameServer")
+		return c.publishFailure(ctx, req, start, fmt.Sprintf("failed to get GameServer '%s': %v", gameServerName, err))
+	}
+
+	// Add the token to its annotations
+	if gs.ObjectMeta.Annotations == nil {
+		gs.ObjectMeta.Annotations = make(map[string]string)
+	}
+	gs.ObjectMeta.Annotations["quilkin.dev/tokens"] = tok
+	log.Info().Str("gameServerName", gameServerName).Str("token", tok).Msg("controller: updating GameServer with routing token")
+
+	// Update the GameServer object in the cluster
+	_, err = c.agones.AgonesV1().GameServers(ns).Update(ctx, gs, metav1.UpdateOptions{})
+	if err != nil {
+		log.Error().Err(err).Str("namespace", ns).Str("gameServerName", gameServerName).Msg("controller: failed to update GameServer with token")
+		return c.publishFailure(ctx, req, start, fmt.Sprintf("failed to update GameServer with token: %v", err))
+	}
+	// END: Add token to GameServer annotations for quilkin
+
 	status := queues.StatusSuccess
 	duration := time.Since(start)
 	metrics.AllocationDuration.Observe(duration.Seconds())
