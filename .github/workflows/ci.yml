@@ -37,23 +37,6 @@ jobs:
       - name: Show coverage summary
         run: go tool cover -func=coverage.txt
 
-      - name: Generate coverage badge
-        uses: tj-actions/coverage-badge-go@v2
-        if: github.ref == 'refs/heads/main'
-        with:
-          filename: coverage.txt
-          output: coverage-badge.svg
-
-      - name: Publish coverage badge to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
-        if: github.ref == 'refs/heads/main'
-        with:
-          branch: gh-pages
-          folder: .
-          target-folder: badges
-          clean: false
-          single-commit: true
-
   build-and-push:
     needs: test
     runs-on: ubuntu-latest
