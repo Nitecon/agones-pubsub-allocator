@@ -1,12 +1,15 @@
 FROM golang:alpine AS builder
 
+# Build argument for version (defaults to "dev" if not provided)
+ARG VERSION=dev
+
 ENV GO111MODULE=auto \
     CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64
 
 
-RUN apk --update add ca-certificates git
+RUN apk --update add ca-certificates
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -16,7 +19,7 @@ COPY . /workspace
 RUN go mod download
 
 # Build
-RUN go build -ldflags "-s -w -X main.version=$(git branch | sed -n -e 's/^\* \(.*\)/\1/p')" -o /app cmd/main.go
+RUN go build -ldflags "-s -w -X main.version=${VERSION}" -o /app cmd/main.go
 
 FROM alpine:3.14
 
