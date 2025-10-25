@@ -62,3 +62,58 @@ func Test_publishFailure(t *testing.T) {
 		})
 	}
 }
+
+func Test_splitAndTrim(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{name: "empty string", input: "", want: nil},
+		{name: "single token", input: "token1", want: []string{"token1"}},
+		{name: "multiple tokens", input: "token1,token2,token3", want: []string{"token1", "token2", "token3"}},
+		{name: "tokens with spaces", input: "token1, token2 , token3", want: []string{"token1", "token2", "token3"}},
+		{name: "tokens with empty parts", input: "token1,,token2", want: []string{"token1", "token2"}},
+		{name: "only commas", input: ",,,", want: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitAndTrim(tt.input)
+			if len(got) != len(tt.want) {
+				t.Errorf("splitAndTrim() length mismatch\ngot: %v\nwant: %v", got, tt.want)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("splitAndTrim() element %d mismatch\ngot: %v\nwant: %v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func Test_appendToken(t *testing.T) {
+	tests := []struct {
+		name           string
+		existingTokens string
+		newToken       string
+		want           string
+	}{
+		{name: "empty existing", existingTokens: "", newToken: "token1", want: "token1"},
+		{name: "append to single", existingTokens: "token1", newToken: "token2", want: "token1,token2"},
+		{name: "append to multiple", existingTokens: "token1,token2", newToken: "token3", want: "token1,token2,token3"},
+		{name: "duplicate token", existingTokens: "token1,token2", newToken: "token1", want: "token1,token2"},
+		{name: "duplicate in middle", existingTokens: "token1,token2,token3", newToken: "token2", want: "token1,token2,token3"},
+		{name: "with spaces", existingTokens: "token1, token2", newToken: "token3", want: "token1, token2,token3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := appendToken(tt.existingTokens, tt.newToken)
+			if got != tt.want {
+				t.Errorf("appendToken() mismatch\ngot: %v\nwant: %v", got, tt.want)
+			}
+		})
+	}
+}

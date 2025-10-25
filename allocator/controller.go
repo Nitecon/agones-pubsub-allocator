@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"agones-pubsub-allocator/metrics"
@@ -128,11 +129,11 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 		return c.publishFailure(ctx, req, start, fmt.Sprintf("failed to get GameServer '%s': %v", gameServerName, err))
 	}
 
-	// Add the token to its annotations
+	// Add the token to its annotations (append if exists, create if not)
 	if gs.ObjectMeta.Annotations == nil {
 		gs.ObjectMeta.Annotations = make(map[string]string)
 	}
-	gs.ObjectMeta.Annotations["quilkin.dev/tokens"] = tok
+	gs.ObjectMeta.Annotations["quilkin.dev/tokens"] = appendToken(gs.ObjectMeta.Annotations["quilkin.dev/tokens"], tok)
 	log.Info().Str("gameServerName", gameServerName).Str("token", tok).Msg("controller: updating GameServer with routing token")
 
 	// Update the GameServer object in the cluster
@@ -166,6 +167,42 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 
 func NewController(p queues.Publisher, ns string) *Controller {
 	return &Controller{publisher: p, targetNamespace: ns}
+}
+
+// appendToken adds a new token to a comma-separated list of tokens.
+// If the token already exists in the list, it won't be added again.
+// Returns the updated comma-separated token list.
+func appendToken(existingTokens, newToken string) string {
+	if existingTokens == "" {
+		return newToken
+	}
+
+	// Split existing tokens and check for duplicates
+	tokens := splitAndTrim(existingTokens)
+	for _, t := range tokens {
+		if t == newToken {
+			// Token already exists, return as-is
+			return existingTokens
+		}
+	}
+
+	// Append new token
+	return existingTokens + "," + newToken
+}
+
+// splitAndTrim splits a comma-separated string and trims whitespace from each element.
+func splitAndTrim(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // newAgonesClient returns an Agones typed clientset using in-cluster config or local kubeconfig.

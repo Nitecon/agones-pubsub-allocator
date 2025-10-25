@@ -14,6 +14,9 @@ rules:
   - apiGroups: ["allocation.agones.dev"]
     resources: ["gameserverallocations"]
     verbs: ["create"]
+  - apiGroups: ["agones.dev"] # <-- ADD THIS RULE
+    resources: ["gameservers"]
+    verbs: ["get", "update"]
 ---
 # allocator-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
