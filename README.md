@@ -108,9 +108,10 @@ go run ./cmd
 ```
 
 - **Behavior:**
-  - Subscriber receives `{ ticketId, fleet, playerId? }`.
+  - Subscriber receives `{ ticketId, fleet, playerId }`.
   - Controller allocates a `GameServer` via Agones using selector `agones.dev/fleet: <fleet>`.
-  - On success, Publisher emits an `allocation-result` with a base64 token of `IP:Port`.
+  - On success, Publisher emits an `allocation-result` with a Quilkin-compatible token.
+  - **Note:** `playerId` is **required** for token generation.
 
 - **Result schema (published to result topic):**
 
@@ -120,12 +121,59 @@ go run ./cmd
   "type": "allocation-result",
   "ticketId": "<ticket-id>",
   "status": "Success | Failure",
-  "token": "<base64(IP:Port)>",            // present on Success
+  "token": "<base64-encoded-token>",      // present on Success
   "errorMessage": "<string>"               // present on Failure
 }
 ```
 
-## Configuration
+## Quilkin Token Format
+
+This allocator generates **Quilkin-compatible routing tokens** that are added to the GameServer's `quilkin.dev/tokens` annotation.
+
+### Token Specification
+- **Format**: 16-byte null-terminated string (17 bytes total before base64 encoding)
+- **Source**: Derived from the `playerId` field in the allocation request
+- **Encoding**: Base64 encoded
+- **Behavior**:
+  - PlayerIDs shorter than 16 bytes are zero-padded
+  - PlayerIDs longer than 16 bytes are truncated
+  - A null terminator (`\0`) is always appended as the 17th byte
+
+### Example
+```
+PlayerID: lRTSKLe4sKQYbqo0
+Token (base64): bFJUU0tMZTRzS1FZYnFvMAA=
+Token (decoded): lRTSKLe4sKQYbqo0\0  (16 bytes + null terminator)
+```
+
+### Quilkin Configuration
+
+To use these tokens with Quilkin, configure your filter chain to capture the 17-byte suffix:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quilkin-xds-filter-config
+  namespace: starx
+  labels:
+    quilkin.dev/configmap: "true"
+data:
+  quilkin.yaml: |
+    version: v1alpha1
+    filters:
+      - name: quilkin.filters.capture.v1alpha1.Capture
+        config:
+          metadataKey: "quilkin.dev/token"
+          suffix:
+            size: 17
+            remove: true
+      - name: quilkin.filters.token_router.v1alpha1.TokenRouter
+```
+
+**Important**: The `suffix.size` must be set to `17` to match the token format (16 bytes + null terminator).
+
+## Environment Configuration
 Environment variables (see `Docs/DevSetup.md` for details and precedence):
 - `ALLOCATION_REQUEST_SUBSCRIPTION`, `ALLOCATION_RESULT_TOPIC`
 - `GOOGLE_APPLICATION_CREDENTIALS` or `ALLOCATOR_GSA_CREDENTIALS`
