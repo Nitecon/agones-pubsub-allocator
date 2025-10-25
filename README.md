@@ -13,6 +13,7 @@ A small service that listens to Google Cloud Pub/Sub for allocation requests, al
 - [Coding Guidelines:](Docs/CodingGuidelines.md)
 - [Testing Guidelines:](Docs/TestingGuidelines.md)
 - [Development Setup (env vars and examples):](Docs/DevSetup.md)
+- [New: Join on player IDs](Docs/JoinOnIds.md)
 
 ## Status
 - Fully working: config, metrics, health, Pub/Sub (with service account support), Docker, and example K8s manifests.
@@ -95,7 +96,9 @@ go run ./cmd
 ```
 
 ## Usage
-- **Request schema (Pub/Sub message on request subscription):**
+
+### Request Schema
+**Pub/Sub message on request subscription:**
 
 ```json
 {
@@ -103,52 +106,80 @@ go run ./cmd
   "type": "allocation-request",
   "ticketId": "abcdef",
   "fleet": "starx",
-  "playerId": "123asdf"
+  "playerId": "123asdf",
+  "joinOnIds": ["friend1", "friend2"],     // optional: array of player IDs to join
+  "canJoinNotFound": true                  // optional: allow allocation if friends not found
 }
 ```
 
-- **Behavior:**
-  - Subscriber receives `{ ticketId, fleet, playerId }`.
-  - Controller allocates a `GameServer` via Agones using selector `agones.dev/fleet: <fleet>`.
-  - On success, Publisher emits an `allocation-result` with a Quilkin-compatible token.
-  - **Note:** `playerId` is **required** for token generation.
+**Fields:**
+- **`ticketId`** (required): Unique identifier for this allocation request
+- **`fleet`** (required): Name of the Agones fleet to allocate from
+- **`playerId`** (required): Player's unique identifier (used for token generation)
+- **`joinOnIds`** (optional): Array of player IDs to join (friends/party members). If provided, the allocator will search for gameservers where these players are already allocated
+- **`canJoinNotFound`** (optional): If `true` and friends are not found, proceeds with normal allocation. If `false` and friends are not found, the request fails
 
-- **Result schema (published to result topic):**
+### Behavior
+
+**Token Cleanup:**
+- Before any allocation, the player's token is removed from all gameservers in the fleet
+- This ensures a player only has one active server allocation at a time
+- Allows players to switch servers during a play session
+
+**Friend Joining:**
+- If `joinOnIds` is provided, the allocator searches for gameservers with those player tokens
+- If found, the player is added to the friend's gameserver
+- If not found and `canJoinNotFound=true`, proceeds with normal allocation
+- If not found and `canJoinNotFound=false`, the request fails
+
+**Normal Allocation:**
+- Controller allocates a `GameServer` via Agones using selector `agones.dev/fleet: <fleet>`
+- Agones handles proper server allocation based on capacity, player count, etc.
+- On success, Publisher emits an `allocation-result` with a Quilkin-compatible token
+
+### Result Schema
+**Published to result topic:**
 
 ```json
 {
   "envelopeVersion": "1.0",
   "type": "allocation-result",
   "ticketId": "<ticket-id>",
-  "status": "Success | Failure",
+  "status": "Success | Failure | Queued",
   "token": "<base64-encoded-token>",      // present on Success
-  "errorMessage": "<string>"               // present on Failure
+  "errorMessage": "<string>",              // present on Failure
+  "queuePosition": 5,                      // present on Queued
+  "queueId": "gameserver-name"             // present on Queued
 }
 ```
+
+**Status Values:**
+- **`Success`**: Player successfully allocated to a gameserver. `token` field contains the routing token
+- **`Failure`**: Allocation failed. `errorMessage` contains the error details
+- **`Queued`**: Player is queued waiting for a slot (future feature). `queuePosition` and `queueId` indicate position in queue
 
 ## Quilkin Token Format
 
 This allocator generates **Quilkin-compatible routing tokens** that are added to the GameServer's `quilkin.dev/tokens` annotation.
 
 ### Token Specification
-- **Format**: 16-byte null-terminated string (17 bytes total before base64 encoding)
+- **Format**: 16-byte string
 - **Source**: Derived from the `playerId` field in the allocation request
 - **Encoding**: Base64 encoded
 - **Behavior**:
   - PlayerIDs shorter than 16 bytes are zero-padded
   - PlayerIDs longer than 16 bytes are truncated
-  - A null terminator (`\0`) is always appended as the 17th byte
 
 ### Example
 ```
 PlayerID: lRTSKLe4sKQYbqo0
-Token (base64): bFJUU0tMZTRzS1FZYnFvMAA=
-Token (decoded): lRTSKLe4sKQYbqo0\0  (16 bytes + null terminator)
+Token (base64): bFJUU0tMZTRzS1FZYnFvMA==
+Token (decoded): lRTSKLe4sKQYbqo0  (exactly 16 bytes)
 ```
 
 ### Quilkin Configuration
 
-To use these tokens with Quilkin, configure your filter chain to capture the 17-byte suffix:
+To use these tokens with Quilkin, configure your filter chain to capture the 16-byte suffix:
 
 ```yaml
 apiVersion: v1
@@ -166,12 +197,12 @@ data:
         config:
           metadataKey: "quilkin.dev/token"
           suffix:
-            size: 17
+            size: 16
             remove: true
       - name: quilkin.filters.token_router.v1alpha1.TokenRouter
 ```
 
-**Important**: The `suffix.size` must be set to `17` to match the token format (16 bytes + null terminator).
+**Important**: The `suffix.size` must be set to `16` to match the token format.
 
 ## Environment Configuration
 Environment variables (see `Docs/DevSetup.md` for details and precedence):

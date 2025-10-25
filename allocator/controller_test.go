@@ -123,13 +123,13 @@ func Test_buildQuilkinToken(t *testing.T) {
 	tests := []struct {
 		name     string
 		playerID string
-		wantLen  int // Expected length of decoded token (should be 17 bytes)
+		wantLen  int // Expected length of decoded token (should be 16 bytes)
 	}{
-		{name: "short playerID", playerID: "player1", wantLen: 17},
-		{name: "exact 16 chars", playerID: "player1234567890", wantLen: 17},
-		{name: "long playerID truncated", playerID: "verylongplayeridthatexceeds16bytes", wantLen: 17},
-		{name: "empty playerID", playerID: "", wantLen: 17},
-		{name: "special chars", playerID: "player@123!$%", wantLen: 17},
+		{name: "short playerID", playerID: "player1", wantLen: 16},
+		{name: "exact 16 chars", playerID: "player1234567890", wantLen: 16},
+		{name: "long playerID truncated", playerID: "verylongplayeridthatexceeds16bytes", wantLen: 16},
+		{name: "empty playerID", playerID: "", wantLen: 16},
+		{name: "special chars", playerID: "player@123!$%", wantLen: 16},
 	}
 
 	for _, tt := range tests {
@@ -143,17 +143,12 @@ func Test_buildQuilkinToken(t *testing.T) {
 				return
 			}
 
-			// Verify length is exactly 17 bytes (16 + null terminator)
+			// Verify length is exactly 16 bytes
 			if len(decoded) != tt.wantLen {
 				t.Errorf("buildQuilkinToken() decoded length = %d, want %d", len(decoded), tt.wantLen)
 			}
 
-			// Verify last byte is null terminator
-			if decoded[len(decoded)-1] != 0 {
-				t.Errorf("buildQuilkinToken() last byte = %d, want 0 (null terminator)", decoded[len(decoded)-1])
-			}
-
-			// Verify first 16 bytes contain playerID (or truncated/padded version)
+			// Verify first N bytes contain playerID (or truncated version)
 			expectedPrefix := tt.playerID
 			if len(expectedPrefix) > 16 {
 				expectedPrefix = expectedPrefix[:16]
@@ -186,22 +181,43 @@ func Test_buildQuilkinToken_RealExample(t *testing.T) {
 		t.Fatalf("Failed to decode token: %v", err)
 	}
 
-	// Should be exactly 17 bytes
-	if len(decoded) != 17 {
-		t.Errorf("Token length = %d, want 17", len(decoded))
+	// Should be exactly 16 bytes
+	if len(decoded) != 16 {
+		t.Errorf("Token length = %d, want 16", len(decoded))
 	}
 
-	// Should end with null terminator
-	if decoded[16] != 0 {
-		t.Errorf("Token does not end with null terminator")
-	}
-
-	// First 16 bytes should match playerID
-	if string(decoded[:16]) != playerID {
-		t.Errorf("Token prefix = %q, want %q", string(decoded[:16]), playerID)
+	// All 16 bytes should match playerID
+	if string(decoded) != playerID {
+		t.Errorf("Token = %q, want %q", string(decoded), playerID)
 	}
 
 	t.Logf("PlayerID: %s", playerID)
 	t.Logf("Token (base64): %s", token)
 	t.Logf("Token (decoded hex): % x", decoded)
+}
+
+func Test_removeToken(t *testing.T) {
+	tests := []struct {
+		name           string
+		existingTokens string
+		tokenToRemove  string
+		want           string
+	}{
+		{name: "empty string", existingTokens: "", tokenToRemove: "token1", want: ""},
+		{name: "single token remove", existingTokens: "token1", tokenToRemove: "token1", want: ""},
+		{name: "remove first", existingTokens: "token1,token2,token3", tokenToRemove: "token1", want: "token2,token3"},
+		{name: "remove middle", existingTokens: "token1,token2,token3", tokenToRemove: "token2", want: "token1,token3"},
+		{name: "remove last", existingTokens: "token1,token2,token3", tokenToRemove: "token3", want: "token1,token2"},
+		{name: "token not found", existingTokens: "token1,token2", tokenToRemove: "token3", want: "token1,token2"},
+		{name: "with spaces", existingTokens: "token1, token2 , token3", tokenToRemove: "token2", want: "token1,token3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := removeToken(tt.existingTokens, tt.tokenToRemove)
+			if got != tt.want {
+				t.Errorf("removeToken() = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
