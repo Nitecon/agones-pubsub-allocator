@@ -2,6 +2,7 @@ package allocator
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -116,4 +117,91 @@ func Test_appendToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_buildQuilkinToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		playerID string
+		wantLen  int // Expected length of decoded token (should be 17 bytes)
+	}{
+		{name: "short playerID", playerID: "player1", wantLen: 17},
+		{name: "exact 16 chars", playerID: "player1234567890", wantLen: 17},
+		{name: "long playerID truncated", playerID: "verylongplayeridthatexceeds16bytes", wantLen: 17},
+		{name: "empty playerID", playerID: "", wantLen: 17},
+		{name: "special chars", playerID: "player@123!$%", wantLen: 17},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token := buildQuilkinToken(tt.playerID)
+
+			// Decode the base64 token
+			decoded, err := base64.StdEncoding.DecodeString(token)
+			if err != nil {
+				t.Errorf("buildQuilkinToken() produced invalid base64: %v", err)
+				return
+			}
+
+			// Verify length is exactly 17 bytes (16 + null terminator)
+			if len(decoded) != tt.wantLen {
+				t.Errorf("buildQuilkinToken() decoded length = %d, want %d", len(decoded), tt.wantLen)
+			}
+
+			// Verify last byte is null terminator
+			if decoded[len(decoded)-1] != 0 {
+				t.Errorf("buildQuilkinToken() last byte = %d, want 0 (null terminator)", decoded[len(decoded)-1])
+			}
+
+			// Verify first 16 bytes contain playerID (or truncated/padded version)
+			expectedPrefix := tt.playerID
+			if len(expectedPrefix) > 16 {
+				expectedPrefix = expectedPrefix[:16]
+			}
+			actualPrefix := string(decoded[:len(expectedPrefix)])
+			if actualPrefix != expectedPrefix {
+				t.Errorf("buildQuilkinToken() prefix = %q, want %q", actualPrefix, expectedPrefix)
+			}
+
+			// Verify padding with zeros if playerID is shorter than 16 bytes
+			if len(tt.playerID) < 16 {
+				for i := len(tt.playerID); i < 16; i++ {
+					if decoded[i] != 0 {
+						t.Errorf("buildQuilkinToken() byte[%d] = %d, want 0 (padding)", i, decoded[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+func Test_buildQuilkinToken_RealExample(t *testing.T) {
+	// Test with a real Firebase-style UID
+	playerID := "lRTSKLe4sKQYbqo0"
+	token := buildQuilkinToken(playerID)
+
+	// Decode and verify
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		t.Fatalf("Failed to decode token: %v", err)
+	}
+
+	// Should be exactly 17 bytes
+	if len(decoded) != 17 {
+		t.Errorf("Token length = %d, want 17", len(decoded))
+	}
+
+	// Should end with null terminator
+	if decoded[16] != 0 {
+		t.Errorf("Token does not end with null terminator")
+	}
+
+	// First 16 bytes should match playerID
+	if string(decoded[:16]) != playerID {
+		t.Errorf("Token prefix = %q, want %q", string(decoded[:16]), playerID)
+	}
+
+	t.Logf("PlayerID: %s", playerID)
+	t.Logf("Token (base64): %s", token)
+	t.Logf("Token (decoded hex): % x", decoded)
 }

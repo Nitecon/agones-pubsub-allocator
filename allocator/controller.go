@@ -100,7 +100,16 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 		return c.publishFailure(ctx, req, start, msg)
 	}
 
-	// Success: build token from Address and first Port
+	// Validate PlayerID is present (required for Quilkin token)
+	if req.PlayerID == "" {
+		log.Error().Str("ticketId", req.TicketID).Msg("controller: playerID is required for token generation")
+		return c.publishFailure(ctx, req, start, "playerID is required for allocation")
+	}
+
+	// Build Quilkin token: 16-byte null-terminated string from PlayerID
+	tok := buildQuilkinToken(req.PlayerID)
+
+	// Get address and port for logging/validation
 	addr := created.Status.Address
 	var port int32
 	if len(created.Status.Ports) > 0 {
@@ -110,9 +119,6 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 		log.Error().Str("address", addr).Int32("port", port).Msg("controller: allocated GameServer missing address/port")
 		return c.publishFailure(ctx, req, start, "allocated GameServer missing address/port")
 	}
-
-	raw := fmt.Sprintf("%s:%d", addr, port)
-	tok := base64.StdEncoding.EncodeToString([]byte(raw))
 
 	// START: Add token to GameServer annotations for quilkin
 	gameServerName := created.Status.GameServerName
@@ -134,7 +140,7 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 		gs.ObjectMeta.Annotations = make(map[string]string)
 	}
 	gs.ObjectMeta.Annotations["quilkin.dev/tokens"] = appendToken(gs.ObjectMeta.Annotations["quilkin.dev/tokens"], tok)
-	log.Info().Str("gameServerName", gameServerName).Str("token", tok).Msg("controller: updating GameServer with routing token")
+	log.Info().Str("gameServerName", gameServerName).Str("playerId", req.PlayerID).Str("token", tok).Msg("controller: updating GameServer with routing token")
 
 	// Update the GameServer object in the cluster
 	_, err = c.agones.AgonesV1().GameServers(ns).Update(ctx, gs, metav1.UpdateOptions{})
@@ -203,6 +209,26 @@ func splitAndTrim(s string) []string {
 		}
 	}
 	return result
+}
+
+// buildQuilkinToken creates a 16-byte null-terminated token from playerID.
+// Quilkin requires exactly 16 bytes + null terminator (17 bytes total before base64).
+// The playerID is truncated or padded to fit 16 bytes, then null-terminated.
+func buildQuilkinToken(playerID string) string {
+	const tokenSize = 16
+	// Create a 17-byte buffer (16 bytes + null terminator)
+	buf := make([]byte, tokenSize+1)
+
+	// Copy playerID into first 16 bytes (truncate if too long, pad with zeros if too short)
+	playerBytes := []byte(playerID)
+	if len(playerBytes) > tokenSize {
+		playerBytes = playerBytes[:tokenSize]
+	}
+	copy(buf, playerBytes)
+
+	// Last byte is already 0 (null terminator) from make()
+	// Base64 encode without newlines
+	return base64.StdEncoding.EncodeToString(buf)
 }
 
 // newAgonesClient returns an Agones typed clientset using in-cluster config or local kubeconfig.
