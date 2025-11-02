@@ -103,14 +103,36 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 	// Build Quilkin token for this player
 	tok := buildQuilkinToken(req.PlayerID)
 
-	// STEP 1: Remove player's token from all gameservers to ensure single allocation
+	// STEP 1: Check if player already has an existing allocation
+	log.Info().Str("playerId", req.PlayerID).Msg("controller: checking for existing player allocation")
+	existingGS, err := c.findGameServerWithToken(ctx, ns, req.Fleet, tok)
+	if err != nil {
+		log.Error().Err(err).Msg("controller: failed to search for existing allocation")
+		return c.publishFailure(ctx, req, start, fmt.Sprintf("failed to search for existing allocation: %v", err))
+	}
+
+	// If player already has an allocated server, return the existing token
+	if existingGS != nil && existingGS.Status.State == agonesv1.GameServerStateAllocated {
+		log.Info().Str("gameServerName", existingGS.Name).Str("playerId", req.PlayerID).Msg("controller: found existing allocation, returning existing token")
+		
+		// Get address and port
+		addr := existingGS.Status.Address
+		var port int32
+		if len(existingGS.Status.Ports) > 0 {
+			port = existingGS.Status.Ports[0].Port
+		}
+		
+		return c.publishSuccess(ctx, req, start, tok, addr, port)
+	}
+
+	// STEP 2: No valid existing allocation found, clean up any stale tokens
 	log.Info().Str("playerId", req.PlayerID).Msg("controller: cleaning up existing player tokens across fleet")
 	if err := c.removeTokenFromAllGameServers(ctx, ns, req.Fleet, tok); err != nil {
 		log.Error().Err(err).Msg("controller: failed to cleanup player tokens, continuing with allocation")
 		// Continue with allocation even if cleanup fails
 	}
 
-	// STEP 2: Check for friend joining scenario
+	// STEP 3: Check for friend joining scenario
 	if len(req.JoinOnIDs) > 0 {
 		log.Info().Strs("joinOnIds", req.JoinOnIDs).Bool("canJoinNotFound", req.CanJoinNotFound).Msg("controller: friend join request")
 
@@ -153,7 +175,7 @@ func (c *Controller) Handle(ctx context.Context, req *queues.AllocationRequest) 
 		log.Info().Str("ticketId", req.TicketID).Msg("controller: friends not found but canJoinNotFound=true, proceeding with normal allocation")
 	}
 
-	// STEP 3: Normal allocation flow (no friends or canJoinNotFound=true)
+	// STEP 4: Normal allocation flow (no friends or canJoinNotFound=true)
 	// Build GameServerAllocation spec using fleet label from request
 	gsa := &allocationv1.GameServerAllocation{
 		TypeMeta: metav1.TypeMeta{

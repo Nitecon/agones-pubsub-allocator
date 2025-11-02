@@ -2,32 +2,28 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: allocator-sa
-  namespace: starx
 ---
 # allocator-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: agones-allocator
-  namespace: starx
 rules:
   - apiGroups: ["allocation.agones.dev"]
     resources: ["gameserverallocations"]
     verbs: ["create"]
   - apiGroups: ["agones.dev"] # <-- ADD THIS RULE
     resources: ["gameservers"]
-    verbs: ["get", "update"]
+    verbs: ["get", "update", "list"]
 ---
 # allocator-rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: agones-allocator
-  namespace: starx
 subjects:
   - kind: ServiceAccount
     name: allocator-sa
-    namespace: starx
 roleRef:
   kind: Role
   name: agones-allocator
